@@ -7,6 +7,7 @@
 # Import Modules
 import numpy as np
 
+import copy
 import os
 import pygame as pg
 from pygame.compat import geterror
@@ -30,10 +31,15 @@ class BaseShip(ShipControl):
     """Creates our mission vessel
     """
 
-    def __init__(self, pos, vel, steps=10, params = {'m_dry': 0.25, 'm_wet': 1.0, 'dm/F': 1e1}, thrust_params=None):
+    def __init__(self, pos, vel, steps=10, params = None, thrust_params=None):
         self.pos = pos
         self.vel = vel
-        self.params = params
+
+        if params is None:
+            self.params = {'m_dry': 0.25, 'm_wet': 1.0, 'dm/F': 1e1}
+        else:
+            self.params = params
+
         self.steps = steps
 
         if thrust_params is None:

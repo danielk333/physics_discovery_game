@@ -10,6 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import matplotlib.patches as patches
+import tkinter as tk
+
 
 import pickle
 import sys
@@ -72,7 +74,7 @@ def run_sim():
 
     axes.append(axes[0].twinx())
 
-    fig.suptitle("Simulation data")
+    title = fig.suptitle("Simulation data")
 
     targ_pos = np.array(target_pos)
 
@@ -82,7 +84,7 @@ def run_sim():
 
         log = {'t': [], 'pos': [], 'vel': [], 'm': [], 'F': []}
 
-        t = 0
+        t = 0.0
         # Main Loop
         going = True
         target_hit = False
@@ -103,6 +105,11 @@ def run_sim():
 
             if t > t_max:
                 going = False
+
+        if target_hit:
+            title.set_text("Simulation data: Target hit!")
+        else:
+            title.set_text("Simulation data: Target missed")
 
         for key in log:
             log[key] = np.array(log[key])
@@ -141,11 +148,66 @@ def run_sim():
         axes[5].plot(log['t'], log['F'][:,1], ':', color=color, label='Fy')
         axes[5].legend()
         axes[5].set_xlabel('t')
-        axes[5].set_ylabel('F', color=color)
+        axes[5].set_ylabel('Thrust', color=color)
 
-    
-    update_sim(params=None)
 
+    boxes = {}
+
+    ship0 = SimulatedShip(start_pos, start_vel)
+    start_params = ship0.get_control_params()
+
+    def update_fig():
+        new_params = {}
+        for key in boxes:
+            try:
+                new_params[key] = float(boxes[key].get())
+            except:
+                print(f'WARNING: input in field {key} failed, using start value')
+                new_params[key] = start_params[key]
+                boxes[key].delete(0, 'end')
+                boxes[key].insert(tk.END, f'{start_params[key]:.4e}')
+
+        print('Updating parameters:')
+        for key in new_params:
+            print(f'{key}: {new_params[key]}')
+        update_sim(new_params)
+        plt.draw()
+
+    master = tk.Tk()
+
+    for ind, key in enumerate(start_params):
+        tk.Label(master, text=key).grid(row=ind)
+        e = tk.Entry(master)
+        e.insert(tk.END, f'{start_params[key]:.4e}')
+        e.grid(row=ind, column=1)
+
+        boxes[key] = e
+
+    update_sim(start_params)
+
+    tk.Button(
+        master, 
+        text='Quit', 
+        command=master.quit,
+    ).grid(
+        row=len(start_params), 
+        column=0, 
+        sticky=tk.W, 
+        pady=4,
+    )
+    tk.Button(
+        master, 
+        text='Update simulation', 
+        command=update_fig,
+    ).grid(
+        row=len(start_params), 
+        column=1, 
+        sticky=tk.W, 
+        pady=4,
+    )
+
+    # plt.draw()
+    # tk.mainloop()
     plt.show()
 
 

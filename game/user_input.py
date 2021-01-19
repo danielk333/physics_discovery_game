@@ -3,8 +3,12 @@ import numpy as np
 class ShipControl:
 
     def get_control_params(self):
+        '''These are the parameters that control the "thrust" algorithm. They will appear as float variables in the simulation.
+        '''
         params = dict(
             t_start = 1e3,
+            force_y = 1e-4,
+            force_x = 0,
         )
         return params
 
@@ -19,7 +23,7 @@ class ShipControl:
 
         '''
         if t > params['t_start']:
-            return np.array([0.0,1e-4])
+            return np.array([params['force_x'],params['force_y']])
         else:
             return np.array([0.0,0.0])
 
