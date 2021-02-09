@@ -25,7 +25,7 @@ from objects import *
 from functions import load_image, load_sound
 
 start_pos, start_vel = [0,250], [0.5,0.5]
-target_pos = [300, 100]
+target_pos = [300, 110]
 dt = 1.0
 t_max = 4e3*dt
 screen_size = (1024, 768)
@@ -251,6 +251,7 @@ def run_game():
 
     # Prepare Game Objects
     clock = pg.time.Clock()
+    win = load_sound("448274__henryrichard__sfx-success.wav")
     warp = load_sound("453391__breviceps__warp-sfx.wav")
 
     music = [
@@ -267,10 +268,12 @@ def run_game():
     ## landscape def end ##
 
     ship = Ship(start_pos, start_vel)
+    ship._layer = 2
+
     engine = Thrust(ship)
     target = Target(target_pos)
 
-    sprites = pg.sprite.Group((ship, target) + landscape)
+    sprites = pg.sprite.LayeredUpdates((ship, target) + landscape, default_layer=0)
 
     t = 0
     # Main Loop
@@ -298,17 +301,27 @@ def run_game():
                 going = False
 
         if ship.engine_on:
-            sprites.add(engine)
+            sprites.add(engine, layer=1)
         else:
             if engine in sprites:
                 sprites.remove(engine)
 
         if ship.done(target):
             print(done_str)
-            channel = warp.play()
+            
+            pg.mixer.music.stop()
 
+            channel = win.play()
             while channel.get_busy():
                 pg.time.wait(100)  # ms
+
+            alpha = 0
+            num = 100
+
+            channel = warp.play()
+            while channel.get_busy():
+                pg.time.wait(100)  # ms
+
             going = False
 
         sprites.update(dt, landscape)
@@ -316,10 +329,43 @@ def run_game():
         # Blit background
         screen.blit(background, (0, 0))
 
+        texts = []
+
+        #Draw counter
+        texts.append([
+            font.render(f'Mission number: {mission_counter}', True, (100, 100, 255)), 
+            (700, 20),
+        ])
+        
         #Draw timer
         time_elapsed = time.time() - time0
-        img = font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0], True, (100, 100, 255))
-        screen.blit(img, (20, 20))
+        texts.append([
+            font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0], True, (100, 100, 255)),
+            (700, 40),
+        ])
+
+        #Draw counter
+        if ship.engine_on:
+            texts.append([
+                font.render(f'Engine status: On', True, (100, 255, 100)),
+                (700, 60),
+            ])
+            texts.append([
+                font.render(f'Fx = {ship.F[0]:.2e}', True, (100, 255, 100)),
+                (700, 80),
+            ])
+            texts.append([
+                font.render(f'Fy = {-ship.F[1]:.2e}', True, (100, 255, 100)),
+                (700, 100),
+            ])
+        else:
+            texts.append([
+                font.render(f'Engine status: Off', True, (255, 100, 100)),
+                (700, 60),
+            ])
+
+        for txt, txt_pos in texts:
+            screen.blit(txt, txt_pos)
 
         # Draw "Everything"
         sprites.draw(screen)
@@ -340,18 +386,19 @@ def run_game():
     log_data[:,6] = np.array([x[0] for x in log['F']])
     log_data[:,7] = np.array([x[1] for x in log['F']])
 
-    np.savetxt('log.csv', log_data, delimiter=',', header='t, m, x, y, vx, vy, Fx, Fy')
+    np.savetxt(f'log_mission_{mission_counter}.csv', log_data, delimiter=',', header='t, m, x, y, vx, vy, Fx, Fy')
 
     pg.quit()
 
 
-def plot_log():
+def plot_log(log_num):
+    fname = f'log_mission_{log_num}.csv'
 
-    if not pathlib.Path('log.csv').is_file():
-        raise ValueError('No log file exists')
+    if not pathlib.Path(fname).is_file():
+        raise ValueError(f'Log for mission number {log_num} does not exist')
 
     header = ['t','m','x','y','vx','vy','Fx', 'Fy']
-    log = np.genfromtxt('log.csv', delimiter=',', skip_header=1)
+    log = np.genfromtxt(fname, delimiter=',', skip_header=1)
 
     #total force
     F = np.sqrt(log[:,6]**2 + log[:,7]**2)
@@ -438,18 +485,22 @@ def solve_physics():
 # this calls the 'main' function when this script is executed
 if __name__ == "__main__":
 
-    if len(sys.argv) != 2:
-        raise ValueError('Needs exactly one argument, use command "help" to see commands')
+    if len(sys.argv) < 2:
+        raise ValueError('Needs at lest one argument, use command "help" to see commands')
 
     arg = sys.argv[1].lower().strip()
 
     if arg == 'help':
         print('Available commands:')
-        print('- log: Quicklook plot of the logfile from the latest')
-        print('- sim: Simulate the currently modeled physics in the "force" and "thrust" functions')
-        print('- exp: Run the experiment with the "thrust" function in the real world physics')
+        print('- log [num]: Quicklook plot of the logfile from mission number [num]')
+        print('- sim      : Simulate the currently modeled physics in the "force" and "thrust" functions')
+        print('- exp      : Run the experiment with the "thrust" function in the real world physics')
     elif arg == 'log':
-        plot_log()
+        if len(sys.argv) < 3:
+            logn = 0
+        else:
+            logn = int(sys.argv[2])
+        plot_log(logn)
     elif arg == 'sim':
         run_sim()
     elif arg == 'exp':

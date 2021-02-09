@@ -150,6 +150,8 @@ class Ship(pg.sprite.Sprite, BaseShip):
         self.follow_vel = kwargs.pop('follow_vel', False)
 
         self.engine_sound = load_sound("158894__primeval-polypod__rocket-launch.wav")
+        self.engine_sound.set_volume(kwargs.pop('engine_volume', 0.2))
+
         self.engine_sound_channel = None
 
         self.original = self.image
@@ -162,7 +164,9 @@ class Ship(pg.sprite.Sprite, BaseShip):
 
     def done(self, target):
         """returns true if the ship reaches the target"""
-        return np.linalg.norm(np.array(self.pos) - np.array(target.rect.center)) < target_radius
+        #return np.linalg.norm(np.array(self.pos) - np.array(target.rect.center)) < target_radius
+        return self.rect.colliderect(target.rect)
+        
 
 
     def update(self, dt, landscape):
