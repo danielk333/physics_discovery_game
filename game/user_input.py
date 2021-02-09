@@ -7,14 +7,14 @@ class ShipControl:
         '''
         params = dict(
             t_start = 1e3,
-            force_y = -1e-4,
+            force_y = 1e-4,
             force_x = 0,
         )
         return params
 
     def thrust(self, pos, vel, t, **params):
         '''Thruster controller: takes in ship position, velocity and time.
-        Returns the vector force to thrust for that time.
+        Returns the vector force that the thrust should generate for that time.
 
         In the keyword arguments "params" are the parameters to control the algorithm.
 

@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import matplotlib.patches as patches
+from matplotlib import path as mpl_path
 import tkinter as tk
 
-import time
 import pickle
 import sys
 import os
@@ -22,14 +22,16 @@ import pygame as pg
 from pygame.compat import geterror
 
 from objects import *
-from functions import load_image, load_sound
+from functions import load_image, load_sound, get_path
 
 start_pos, start_vel = [0,250], [0.5,0.5]
 target_pos = [300, 110]
-dt = 1.0
-t_max = 4e3*dt
+dt = 2.0
+t_max = 4e3
 screen_size = (1024, 768)
 my_dpi = 96
+target_size = [30,30]
+max_missions = 5
 
 done_str = '''
 Congratulations! The mission reached the target(s)
@@ -56,6 +58,15 @@ Congratulations! The mission reached the target(s)
 ★░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░★
 '''
 
+no_money_str = '''
+No more $$$$ in the bank, get some more by entering a valid passcode.
+
+Get passcodes by completing calculation exercises (see instruction PDF), each passcode is worth 5 experiments!
+
+Enter a passcode by calling "bank [passcode]".
+'''
+
+
 def run_sim():
 
     fig = plt.figure(constrained_layout=True, figsize=(screen_size[0]/my_dpi, screen_size[1]/my_dpi), dpi=my_dpi)
@@ -78,6 +89,13 @@ def run_sim():
 
     targ_pos = np.array(target_pos)
 
+    targ_poly = mpl_path.Path([
+        targ_pos - np.array([-target_size[0]*0.5, -target_size[1]*0.5]),
+        targ_pos - np.array([target_size[0]*0.5, -target_size[1]*0.5]),
+        targ_pos - np.array([-target_size[0]*0.5, target_size[1]*0.5]),
+        targ_pos - np.array([-target_size[0]*0.5, target_size[1]*0.5]),
+    ])
+
     def update_sim(params):
 
         ship = SimulatedShip(start_pos, start_vel, thrust_params=params)
@@ -91,7 +109,7 @@ def run_sim():
         while going:
             t += dt
 
-            if np.linalg.norm(np.array(ship.pos) - targ_pos) < target_radius:
+            if targ_poly.contains_point(ship.pos):
                 going = False
                 target_hit = True
 
@@ -124,9 +142,9 @@ def run_sim():
         plane_ax.add_patch(rect_world)
 
         rect_targ = patches.Rectangle(
-            (target_pos[0] - target_radius, screen_size[1] - (target_pos[1] - target_radius)),
-            target_radius,
-            target_radius,
+            (target_pos[0] - target_size[0], screen_size[1] - (target_pos[1] - target_size[1])),
+            target_size[0],
+            target_size[1],
             linewidth=1,edgecolor='g',facecolor='none'
         )
         plane_ax.add_patch(rect_targ)
@@ -217,13 +235,17 @@ def run_game():
        a loop until the function returns."""
     # Initialize Everything
 
-    cnt = pathlib.Path('mission_counter.npy')
+    cnt = pathlib.Path(get_path('mission_counter.npy'))
 
     if cnt.is_file():
         with open(cnt, 'rb') as h:
             mission_counter = pickle.load(h)
     else:
         mission_counter = 0
+
+    if mission_counter > max_missions:
+        print(no_money_str)
+        raise ValueError('Broke!?')
 
     print(f'{mission_counter} Number of missions performed')
 
@@ -255,13 +277,13 @@ def run_game():
     warp = load_sound("453391__breviceps__warp-sfx.wav")
 
     music = [
-        "Kai_Engel-Brand_New_World.wav",
-        "Jason_Shaw-Tech_Talk.wav",
-        "Jason_Shaw-Vanishing_Horizon.wav",
+        get_path("Kai_Engel-Brand_New_World.wav"),
+        get_path("Jason_Shaw-Tech_Talk.wav"),
+        get_path("Jason_Shaw-Vanishing_Horizon.wav"),
     ]
 
     pg.mixer.init()
-    pg.mixer.music.load('data/' + music[0])
+    pg.mixer.music.load(music[0])
 
     ## put landscape here ##
     landscape = (Star([200,300], 1e10), AntiStar([50,100], 1e10))
@@ -273,25 +295,41 @@ def run_game():
     engine = Thrust(ship)
     target = Target(target_pos)
 
+    fuel_max = ship.params['m_wet']
+
     sprites = pg.sprite.LayeredUpdates((ship, target) + landscape, default_layer=0)
+
+
+    game_speed = 60 #fps
+    loop_time = int(1.0e3/game_speed) #ms
+
+
+    fade_surf = pg.Surface(screen_size)
+    fade_surf.fill((0,0,0))
+    fade_surf.set_alpha(255)
+
+    alpha = 1
+
+    fade_time = 2.0 #sec
+    fade_timer = 0
+
+    fade_in = True
+    fade_out = False
 
     t = 0
     # Main Loop
     going = True
+    paused = True
+    channel = None
     pg.mixer.music.play()
 
-    time0 = time.time()
     while going:
+        compute_time_ms = clock.tick(game_speed)
+        if compute_time_ms > loop_time:
+            dt_mult = compute_time_ms/loop_time
+        else:
+            dt_mult = 1.0
 
-        clock.tick(120)
-
-        t += dt
-
-        log['t'].append(t)
-        log['pos'].append([ship.pos[0], screen_size[1] - ship.pos[1]])
-        log['vel'].append([ship.vel[0], -ship.vel[1]])
-        log['m'].append(ship.m)
-        log['F'].append([ship.F[0], -ship.F[1]])
 
         # Handle Input Events
         for event in pg.event.get():
@@ -300,31 +338,37 @@ def run_game():
             elif event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 going = False
 
-        if ship.engine_on:
-            sprites.add(engine, layer=1)
-        else:
-            if engine in sprites:
-                sprites.remove(engine)
+        if not paused:
+            t += dt*dt_mult
 
-        if ship.done(target):
-            print(done_str)
-            
-            pg.mixer.music.stop()
+            if t > t_max:
+                going = False
 
-            channel = win.play()
-            while channel.get_busy():
-                pg.time.wait(100)  # ms
+            log['t'].append(t)
+            log['pos'].append([ship.pos[0], screen_size[1] - ship.pos[1]])
+            log['vel'].append([ship.vel[0], -ship.vel[1]])
+            log['m'].append(ship.m)
+            log['F'].append([ship.F[0], -ship.F[1]])
 
-            alpha = 0
-            num = 100
+            if ship.engine_on:
+                sprites.add(engine, layer=1)
+            else:
+                if engine in sprites:
+                    sprites.remove(engine)
 
-            channel = warp.play()
-            while channel.get_busy():
-                pg.time.wait(100)  # ms
+            if ship.done(target):
+                print(done_str)
+                
+                pg.mixer.music.stop()
 
-            going = False
+                channel = win.play()
+                while channel.get_busy():
+                    pg.time.wait(100)  # ms
 
-        sprites.update(dt, landscape)
+                channel = warp.play()
+                fade_out = True
+
+            sprites.update(dt, landscape)
 
         # Blit background
         screen.blit(background, (0, 0))
@@ -338,13 +382,13 @@ def run_game():
         ])
         
         #Draw timer
-        time_elapsed = time.time() - time0
+        time_elapsed = int((t/dt)/game_speed)
         texts.append([
             font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0], True, (100, 100, 255)),
             (700, 40),
         ])
 
-        #Draw counter
+        #Draw engine data
         if ship.engine_on:
             texts.append([
                 font.render(f'Engine status: On', True, (100, 255, 100)),
@@ -364,16 +408,54 @@ def run_game():
                 (700, 60),
             ])
 
+        
+        #Fuel level
+        texts.append([
+            font.render(f'Fuel level:', True, (100, 100, 255)),
+            (700, 130),
+        ])
+        draw_bar(screen, 
+            pos=(700, 145), 
+            size=(200, 20), 
+            border_color=(100,100,100), 
+            bar_color=(128, 0, 0), 
+            progress=ship.params['m_wet']/fuel_max,
+        )
+
         for txt, txt_pos in texts:
             screen.blit(txt, txt_pos)
 
         # Draw "Everything"
         sprites.draw(screen)
 
-        pg.display.flip()
+        if fade_in:
+            paused = True
+            fade_timer += dt_mult/game_speed
+            alpha = 1 - fade_timer/fade_time
+            if alpha < 0:
+                alpha = 0
+                fade_in = False
+                paused = False
+                fade_timer = 0
+            else:
+                fade_surf.set_alpha(255*alpha)
+                screen.blit(fade_surf,(0,0))
 
-        if t > t_max:
-            going = False
+        if fade_out:
+            paused = True
+            fade_timer += dt_mult/game_speed
+            alpha = fade_timer/fade_time
+            if alpha > 1:
+                going = False
+
+                if channel is not None:
+                    while channel.get_busy():
+                        pg.time.wait(100)  # ms
+            else:
+                fade_surf.set_alpha(255*alpha)
+                screen.blit(fade_surf,(0,0))
+
+        pg.display.flip()
 
 
     log_data = np.zeros((len(log['t']), 8))
@@ -481,6 +563,9 @@ def solve_physics():
     plt.show()
 
 
+def validate_passcode(code):
+    pass
+
 
 # this calls the 'main' function when this script is executed
 if __name__ == "__main__":
@@ -497,7 +582,7 @@ if __name__ == "__main__":
         print('- exp      : Run the experiment with the "thrust" function in the real world physics')
     elif arg == 'log':
         if len(sys.argv) < 3:
-            logn = 0
+            logn = 1
         else:
             logn = int(sys.argv[2])
         plot_log(logn)
@@ -505,6 +590,11 @@ if __name__ == "__main__":
         run_sim()
     elif arg == 'exp':
         run_game()
+    elif arg == 'bank':
+        if len(sys.argv) < 3:
+            raise ValueError('Need a [passcode]')
+        else:
+            validate_passcode(sys.argv[2])
     else:
         raise ValueError('Invalid command, use "help" to see valid commands')
     

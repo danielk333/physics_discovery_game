@@ -14,13 +14,15 @@ if not pg.mixer:
 main_dir = os.path.split(os.path.abspath(__file__))[0]
 data_dir = os.path.join(main_dir, "data")
 
+def get_path(name):
+    return os.path.join(data_dir, name)
 
-# functions to create our resources
+
 def load_image(name, colorkey=None):
     '''Based on pygame documented examples.
     '''
 
-    fullname = os.path.join(data_dir, name)
+    fullname = get_path(name)
     try:
         image = pg.image.load(fullname)
     except pg.error:
@@ -44,7 +46,7 @@ def load_sound(name):
 
     if not pg.mixer or not pg.mixer.get_init():
         return NoneSound()
-    fullname = os.path.join(data_dir, name)
+    fullname = get_path(name)
     try:
         sound = pg.mixer.Sound(fullname)
     except pg.error:

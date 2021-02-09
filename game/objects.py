@@ -21,11 +21,19 @@ __all__ = [
     'Target',
     'Star',
     'AntiStar',
-    'target_radius',
     'Thrust',
+    'draw_bar',
 ]
 
-target_radius = 40.0
+def draw_bar(screen, pos, size, border_color, bar_color, progress):
+    '''Based on https://stackoverflow.com/a/54502953 (CC BY-SA 4.0)
+    '''
+
+    pg.draw.rect(screen, border_color, (*pos, *size), 1)
+    innerPos  = (pos[0]+3, pos[1]+3)
+    innerSize = ((size[0]-6) * progress, size[1]-6)
+    pg.draw.rect(screen, bar_color, (*innerPos, *innerSize))
+
 
 
 class BaseShip(ShipControl):
@@ -49,17 +57,34 @@ class BaseShip(ShipControl):
             self.thrust_params = thrust_params
 
         self._t = 0
-        self.F = self.thrust(self.pos, self.vel, self._t, **self.thrust_params)
+        self.F = self.thrust_game_coord(self.pos, self.vel, self._t, **self.thrust_params)
 
 
     @property
     def m(self):
         return self.params['m_dry'] + self.params['m_wet']
 
+    def thrust_game_coord(self, pos, vel, t, **params):
+        _pos = copy.copy(pos)
+        _vel = copy.copy(vel)
+        _pos[1] = -pos[1]
+        _vel[1] = -vel[1]
+        _F = self.thrust(_pos, _vel, t, **params)
+        _F[1] = -_F[1]
+        return _F
+
+    def force_game_coord(self, pos, vel, t, m):
+        _pos = copy.copy(pos)
+        _vel = copy.copy(vel)
+        _pos[1] = -pos[1]
+        _vel[1] = -vel[1]
+        _F = self.force(_pos, _vel, t, m)
+        _F[1] = -_F[1]
+        return _F
 
     def acceleration(self, landscape):
         if landscape is None:
-            F_tot = self.force(self.pos, self.vel, self._t, self.m)
+            F_tot = self.force_game_coord(self.pos, self.vel, self._t, self.m)
         else:
             F_tot = np.array([0.0,0.0])
             for obj in landscape:
@@ -67,7 +92,7 @@ class BaseShip(ShipControl):
                 F_tot += F_
 
         if self.params['m_wet'] > 0:
-            self.F = self.thrust(self.pos, self.vel, self._t, **self.thrust_params)
+            self.F = self.thrust_game_coord(self.pos, self.vel, self._t, **self.thrust_params)
         else:
             self.F = np.array([0.0,0.0])
 
@@ -164,7 +189,6 @@ class Ship(pg.sprite.Sprite, BaseShip):
 
     def done(self, target):
         """returns true if the ship reaches the target"""
-        #return np.linalg.norm(np.array(self.pos) - np.array(target.rect.center)) < target_radius
         return self.rect.colliderect(target.rect)
         
 
