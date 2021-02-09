@@ -22,6 +22,7 @@ __all__ = [
     'Star',
     'AntiStar',
     'target_radius',
+    'Thrust',
 ]
 
 target_radius = 40.0
@@ -106,6 +107,38 @@ class BaseShip(ShipControl):
         self.params['m_wet'] -= dm
 
 
+class Thrust(pg.sprite.Sprite):
+
+    def __init__(self, ship, **kwargs):
+        pg.sprite.Sprite.__init__(self)
+
+        self.image, self.rect = load_image("engine.bmp", [0,0,0])
+        self.ship = ship
+
+        self.max_force_scale = kwargs.pop('max_force_scale', 5e-5)
+        self.max_scale = kwargs.pop('max_scale', 2.0)
+
+        self.original = self.image
+        self.original_rect = self.rect
+
+        self.rect.center = ship.rect.center
+
+
+    def update(self, *args, **kwargs):
+
+        F_norm = np.linalg.norm(self.ship.F)
+
+        scale = F_norm/self.max_force_scale
+        if scale > self.max_scale:
+            scale = self.max_scale
+
+        theta_F = -np.degrees(np.arctan2(self.ship.F[1], self.ship.F[0]))
+        new_size = (int(self.original_rect.width*scale), int(self.original_rect.height*scale))
+
+        self.image = pg.transform.rotate(self.original, theta_F)
+        self.image = pg.transform.scale(self.image, new_size)
+        self.rect = self.image.get_rect(center=self.ship.pos)
+
 
 class Ship(pg.sprite.Sprite, BaseShip):
 
@@ -113,13 +146,16 @@ class Ship(pg.sprite.Sprite, BaseShip):
         pg.sprite.Sprite.__init__(self)
 
         self.image, self.rect = load_image("ship.bmp", [0,0,0])
-        self.engine, self.rect_engine = load_image("engine.bmp", [0,0,0])
+
+        self.follow_vel = kwargs.pop('follow_vel', False)
+
+        self.engine_sound = load_sound("158894__primeval-polypod__rocket-launch.wav")
+        self.engine_sound_channel = None
 
         self.original = self.image
-        self.original_engine = self.engine
+        self.engine_on = False
 
         self.rect.center = pos
-        self.rect_engine.center = pos
 
         BaseShip.__init__(self, pos, vel, **kwargs)
 
@@ -132,8 +168,24 @@ class Ship(pg.sprite.Sprite, BaseShip):
     def update(self, dt, landscape):
         BaseShip.update(self, dt, landscape)
 
-        theta = -np.degrees(np.arctan2(self.vel[1], self.vel[0]))
-        self.image = pg.transform.rotate(self.original, theta)
+        F_norm = np.linalg.norm(self.F)
+
+        if F_norm > 0:
+            self.engine_on = True
+            if self.engine_sound_channel is None:
+                self.engine_sound_channel = self.engine_sound.play()
+            else:
+                if not self.engine_sound_channel.get_busy():
+                    self.engine_sound_channel = self.engine_sound.play()
+        else:
+            self.engine_on = False
+            if self.engine_sound_channel is not None:
+                if self.engine_sound_channel.get_busy():
+                    self.engine_sound.stop()
+
+        if self.follow_vel:
+            theta = -np.degrees(np.arctan2(self.vel[1], self.vel[0]))
+            self.image = pg.transform.rotate(self.original, theta)
         self.rect = self.image.get_rect(center=self.pos)
 
 

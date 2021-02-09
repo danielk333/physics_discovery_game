@@ -7,7 +7,7 @@ class ShipControl:
         '''
         params = dict(
             t_start = 1e3,
-            force_y = 1e-4,
+            force_y = -1e-4,
             force_x = 0,
         )
         return params

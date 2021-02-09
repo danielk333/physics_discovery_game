@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """ 
 
-based on: pygame.examples.chimp
 """
 
 
@@ -12,11 +11,12 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.patches as patches
 import tkinter as tk
 
-
+import time
 import pickle
 import sys
 import os
 import pathlib
+import datetime
 
 import pygame as pg
 from pygame.compat import geterror
@@ -238,6 +238,8 @@ def run_game():
     pg.display.set_caption("Exploration Mission")
     pg.mouse.set_visible(1)
 
+    font = pg.font.SysFont(None, 24)
+
     # Create The Backgound
     background = pg.Surface(screen.get_size())
     background = background.convert()
@@ -249,21 +251,35 @@ def run_game():
 
     # Prepare Game Objects
     clock = pg.time.Clock()
-    punch_sound = load_sound("punch.wav")
+    warp = load_sound("453391__breviceps__warp-sfx.wav")
+
+    music = [
+        "Kai_Engel-Brand_New_World.wav",
+        "Jason_Shaw-Tech_Talk.wav",
+        "Jason_Shaw-Vanishing_Horizon.wav",
+    ]
+
+    pg.mixer.init()
+    pg.mixer.music.load('data/' + music[0])
 
     ## put landscape here ##
     landscape = (Star([200,300], 1e10), AntiStar([50,100], 1e10))
     ## landscape def end ##
 
     ship = Ship(start_pos, start_vel)
+    engine = Thrust(ship)
     target = Target(target_pos)
 
-    allsprites = pg.sprite.RenderPlain((ship, target) + landscape)
+    sprites = pg.sprite.Group((ship, target) + landscape)
 
     t = 0
     # Main Loop
     going = True
+    pg.mixer.music.play()
+
+    time0 = time.time()
     while going:
+
         clock.tick(120)
 
         t += dt
@@ -281,16 +297,33 @@ def run_game():
             elif event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                 going = False
 
+        if ship.engine_on:
+            sprites.add(engine)
+        else:
+            if engine in sprites:
+                sprites.remove(engine)
+
         if ship.done(target):
             print(done_str)
-            punch_sound.play()  # punch
+            channel = warp.play()
+
+            while channel.get_busy():
+                pg.time.wait(100)  # ms
             going = False
 
-        allsprites.update(dt, landscape)
+        sprites.update(dt, landscape)
 
-        # Draw Everything
+        # Blit background
         screen.blit(background, (0, 0))
-        allsprites.draw(screen)
+
+        #Draw timer
+        time_elapsed = time.time() - time0
+        img = font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0], True, (100, 100, 255))
+        screen.blit(img, (20, 20))
+
+        # Draw "Everything"
+        sprites.draw(screen)
+
         pg.display.flip()
 
         if t > t_max:

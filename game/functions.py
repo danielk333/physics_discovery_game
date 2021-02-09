@@ -17,6 +17,9 @@ data_dir = os.path.join(main_dir, "data")
 
 # functions to create our resources
 def load_image(name, colorkey=None):
+    '''Based on pygame documented examples.
+    '''
+
     fullname = os.path.join(data_dir, name)
     try:
         image = pg.image.load(fullname)
@@ -32,6 +35,9 @@ def load_image(name, colorkey=None):
 
 
 def load_sound(name):
+    '''Based on pygame documented examples.
+    '''
+
     class NoneSound:
         def play(self):
             pass
