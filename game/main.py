@@ -78,9 +78,9 @@ Congratulations! The mission reached the target(s)
 '''
 
 no_money_str = '''
-No more $$$$ in the bank, get some more by entering a valid passcode.
+No more funding by the bank to launch another experiment! Get some more by entering a valid sponsor passcode.
 
-Get passcodes by completing calculation exercises (see instruction PDF), each passcode is worth 5 experiments!
+Get passcodes by completing course exercises (see instruction PDF), each passcode is worth 3 experiments!
 
 Enter a passcode by calling "bank [passcode]".
 '''
@@ -592,7 +592,26 @@ def plot_log(log_num):
 
 
 def validate_passcode(code):
-    pass
+    with open(get_path('passcodes'), 'r') as f:
+        lines = f.readlines()
+    lines = [line.strip().lower() for line in lines if len(line) > 0]
+
+    code0 = code.strip().lower()
+
+    if code0 in lines:
+        del lines[lines.index(code0)]
+        
+        mission_counter, level_number = get_save_data()
+        print(f'Code {code} redeemed! 3 missions paid off: Mission Counter {mission_counter} -> {mission_counter - 3}')
+
+        mission_counter = mission_counter - 3
+        put_save_data(mission_counter, level_number)
+        
+        with open(get_path('passcodes'), 'w') as f:
+            f.write('\n'.join(lines))
+    else:
+        print('Invalid code!')
+
 
 
 # this calls the 'main' function when this script is executed
