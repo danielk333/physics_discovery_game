@@ -30,7 +30,8 @@ class ShipControl:
 class PhysicsModel:
 
     def force(self, pos, vel, t, m):
-
-        #rv = np.array([500,768-500]) - np.array(pos)
-        #return 6.674e-11*m*1e10*rv/np.linalg.norm(rv)**2
         return np.array([0.0,0.0])
+
+if __name__=='__main__':
+    pass
+    #TODO add passing argv to compiled game here
