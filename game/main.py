@@ -12,6 +12,7 @@ import matplotlib.patches as patches
 from matplotlib import path as mpl_path
 import tkinter as tk
 
+import json
 import pickle
 import sys
 import os
@@ -22,16 +23,34 @@ import pygame as pg
 from pygame.compat import geterror
 
 from objects import *
-from functions import load_image, load_sound, get_path
+from functions import (
+        load_image, 
+        load_sound, 
+        get_path, 
+        get_config,
+        get_save_data,
+        put_save_data,
+        get_config_level_conf,
+    )
 
-start_pos, start_vel = [0,250], [0.5,0.5]
-target_pos = [300, 110]
-dt = 2.0
-t_max = 4e3
-screen_size = (1024, 768)
-my_dpi = 96
-target_size = [30,30]
-max_missions = 5
+config = get_config('game_config.cfg')
+
+levels = 0
+for group in config:
+    if group.startswith('level'):
+        levels += 1
+
+game_speed = config.getint('graphics', 'fps')
+fade_time = config.getfloat('graphics', 'fade_time') #sec
+dt = config.getfloat('general', 'time_step')
+t_max = config.getfloat('general', 'max_time')
+screen_size = (config.getint('graphics', 'screen_size_x'), config.getint('graphics', 'screen_size_y'))
+dpi = config.getint('graphics', 'dpi')
+target_size = [30,30] #from the image pixel size
+max_missions = text_x = config.getint('general', 'max_missions')
+text_x = config.getint('graphics', 'text_x_offset')
+
+max_real_time = datetime.timedelta(seconds=t_max/(game_speed*dt))
 
 done_str = '''
 Congratulations! The mission reached the target(s)
@@ -67,9 +86,25 @@ Enter a passcode by calling "bank [passcode]".
 '''
 
 
-def run_sim():
+def run_sim(level):
 
-    fig = plt.figure(constrained_layout=True, figsize=(screen_size[0]/my_dpi, screen_size[1]/my_dpi), dpi=my_dpi)
+    mission_counter, level_number = get_save_data()
+    if level is None:
+        level = level_number
+    else:
+        if level > level_number:
+            raise ValueError('Cannot simulate level before preceding levels are completed')
+    
+    conf_key = f'level {level}'
+
+    start_pos = json.loads(config.get(conf_key,'start_pos'))
+    start_vel = json.loads(config.get(conf_key,'start_vel'))
+    target_pos = json.loads(config.get(conf_key,'target_pos'))
+
+    ## put landscape here ##
+    level_conf = get_config_level_conf(config, conf_key)
+
+    fig = plt.figure(constrained_layout=True, figsize=(screen_size[0]/dpi, screen_size[1]/dpi), dpi=dpi)
 
     gs = GridSpec(3, 3, figure=fig)
  
@@ -98,7 +133,7 @@ def run_sim():
 
     def update_sim(params):
 
-        ship = SimulatedShip(start_pos, start_vel, thrust_params=params)
+        ship = SimulatedShip(start_pos, start_vel, screen_size, thrust_params=params)
 
         log = {'t': [], 'pos': [], 'vel': [], 'm': [], 'F': []}
 
@@ -137,6 +172,12 @@ def run_sim():
             ax.clear()
 
         plane_ax.plot(log['pos'][:,0], log['pos'][:,1])
+
+        for num, data in level_conf['star'].items():
+            plane_ax.plot(data['pos'][0], screen_size[1]-data['pos'][1], 'b*')
+        for num, data in level_conf['antistar'].items():
+            plane_ax.plot(data['pos'][0], screen_size[1]-data['pos'][1], 'rx')
+
         
         rect_world = patches.Rectangle((0,0),screen_size[0],screen_size[1],linewidth=1,edgecolor='r',facecolor='none')
         plane_ax.add_patch(rect_world)
@@ -171,7 +212,7 @@ def run_sim():
 
     boxes = {}
 
-    ship0 = SimulatedShip(start_pos, start_vel)
+    ship0 = SimulatedShip(start_pos, start_vel, screen_size)
     start_params = ship0.get_control_params()
 
     def update_fig():
@@ -229,19 +270,25 @@ def run_sim():
     plt.show()
 
 
-def run_game():
+def run_game(level=None):
     """this function is called when the program starts.
        it initializes everything it needs, then runs in
        a loop until the function returns."""
     # Initialize Everything
 
-    cnt = pathlib.Path(get_path('mission_counter.npy'))
+    with open(get_path('credits')) as f:
+        print(f.read())
 
-    if cnt.is_file():
-        with open(cnt, 'rb') as h:
-            mission_counter = pickle.load(h)
+    mission_counter, level_number = get_save_data()
+    if level is None:
+        level = level_number
     else:
-        mission_counter = 0
+        if level > level_number:
+            raise ValueError('Cannot play level before preceding levels are completed')
+
+    if level_number > levels:
+        print('All missions complete!')
+        exit()
 
     if mission_counter > max_missions:
         print(no_money_str)
@@ -250,8 +297,8 @@ def run_game():
     print(f'{mission_counter} Number of missions performed')
 
     mission_counter += 1
-    with open(cnt, 'wb') as h:
-        pickle.dump(mission_counter, h)
+
+    put_save_data(mission_counter, level_number)
 
     log = {'t': [], 'pos': [], 'vel': [], 'm': [], 'F': []}
 
@@ -281,15 +328,36 @@ def run_game():
         get_path("Jason_Shaw-Tech_Talk.wav"),
         get_path("Jason_Shaw-Vanishing_Horizon.wav"),
     ]
+    eq_volume = [
+        1,
+        0.4,
+        1,
+    ]
 
     pg.mixer.init()
-    pg.mixer.music.load(music[0])
+    pg.mixer.music.load(music[level-1])
+    pg.mixer.music.set_volume(eq_volume[level-1])
+
+    conf_key = f'level {level}'
+
+    start_pos = json.loads(config.get(conf_key,'start_pos'))
+    start_vel = json.loads(config.get(conf_key,'start_vel'))
+    target_pos = json.loads(config.get(conf_key,'target_pos'))
 
     ## put landscape here ##
-    landscape = (Star([200,300], 1e10), AntiStar([50,100], 1e10))
+    level_conf = get_config_level_conf(config, conf_key)
+
+    #construct landscape from config file
+    landscape = []
+    for num, data in level_conf['star'].items():
+        landscape.append(Star(data['pos'], data['mass']))
+    for num, data in level_conf['antistar'].items():
+        landscape.append(AntiStar(data['pos'], data['mass']))
+
+    landscape = tuple(landscape)
     ## landscape def end ##
 
-    ship = Ship(start_pos, start_vel)
+    ship = Ship(start_pos, start_vel, screen_size)
     ship._layer = 2
 
     engine = Thrust(ship)
@@ -299,10 +367,7 @@ def run_game():
 
     sprites = pg.sprite.LayeredUpdates((ship, target) + landscape, default_layer=0)
 
-
-    game_speed = 60 #fps
     loop_time = int(1.0e3/game_speed) #ms
-
 
     fade_surf = pg.Surface(screen_size)
     fade_surf.fill((0,0,0))
@@ -310,7 +375,6 @@ def run_game():
 
     alpha = 1
 
-    fade_time = 2.0 #sec
     fade_timer = 0
 
     fade_in = True
@@ -358,6 +422,9 @@ def run_game():
 
             if ship.done(target):
                 print(done_str)
+                if level > level_number:
+                    level_number += 1
+                    put_save_data(mission_counter, level_number)
                 
                 pg.mixer.music.stop()
 
@@ -377,45 +444,45 @@ def run_game():
 
         #Draw counter
         texts.append([
-            font.render(f'Mission number: {mission_counter}', True, (100, 100, 255)), 
-            (700, 20),
+            font.render(f'Mission number: {mission_counter} / {max_missions}', True, (100, 100, 255)), 
+            (text_x, 20),
         ])
         
         #Draw timer
         time_elapsed = int((t/dt)/game_speed)
         texts.append([
-            font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0], True, (100, 100, 255)),
-            (700, 40),
+            font.render(str(datetime.timedelta(seconds=time_elapsed)).split('.')[0] + f' / {max_real_time}', True, (100, 100, 255)),
+            (text_x, 40),
         ])
 
         #Draw engine data
         if ship.engine_on:
             texts.append([
                 font.render(f'Engine status: On', True, (100, 255, 100)),
-                (700, 60),
+                (text_x, 60),
             ])
             texts.append([
                 font.render(f'Fx = {ship.F[0]:.2e}', True, (100, 255, 100)),
-                (700, 80),
+                (text_x, 80),
             ])
             texts.append([
                 font.render(f'Fy = {-ship.F[1]:.2e}', True, (100, 255, 100)),
-                (700, 100),
+                (text_x, 100),
             ])
         else:
             texts.append([
                 font.render(f'Engine status: Off', True, (255, 100, 100)),
-                (700, 60),
+                (text_x, 60),
             ])
 
         
         #Fuel level
         texts.append([
             font.render(f'Fuel level:', True, (100, 100, 255)),
-            (700, 130),
+            (text_x, 130),
         ])
         draw_bar(screen, 
-            pos=(700, 145), 
+            pos=(text_x, 145), 
             size=(200, 20), 
             border_color=(100,100,100), 
             bar_color=(128, 0, 0), 
@@ -474,6 +541,10 @@ def run_game():
 
 
 def plot_log(log_num):
+    if log_num is None:
+        mission_counter, _ = get_save_data()
+        log_num = mission_counter
+
     fname = f'log_mission_{log_num}.csv'
 
     if not pathlib.Path(fname).is_file():
@@ -519,49 +590,6 @@ def plot_log(log_num):
     plt.show()
 
 
-def solve_physics():
-
-    star_pos = np.array([200,200])
-
-    header = ['t','m','x','y','vx','vy','Fx', 'Fy']
-    log = np.genfromtxt('log.csv', delimiter=',', skip_header=1)
-
-    x_rel = log[:,2] - star_pos[0]
-    y_rel = log[:,3] - star_pos[1]
-
-    r = np.sqrt(x_rel**2 + y_rel**2)
-
-    ax = np.diff(log[:,4])
-    ay = np.diff(log[:,5])
-
-    Fx_tot = ax*log[:-1,1]
-    Fy_tot = ay*log[:-1,1]
-
-    Fx_ext = Fx_tot - log[1:,6]
-    Fy_ext = Fy_tot - log[1:,7]
-
-    F = np.sqrt(log[:,6]**2 + log[:,7]**2)
-    F_ext = np.sqrt(Fx_ext**2 + Fy_ext**2)
-
-    fig = plt.figure(constrained_layout=True)
-    ax = fig.add_subplot(2,2,1)
-    ax.plot(log[:-1,0], r[:-1])
-
-    ax = fig.add_subplot(2,2,2)
-    ax.plot(log[:-1,0], F[:-1])
-
-    ax = fig.add_subplot(2,2,3)
-    ax.plot(log[:-1,0], F_ext)
-
-    ax = fig.add_subplot(2,2,4)
-    ax.plot(r[:-1], F_ext/log[:-1,1])
-
-
-    #insert other convenience functions like fitting arbitrary functions ect ect
-    
-
-    plt.show()
-
 
 def validate_passcode(code):
     pass
@@ -571,25 +599,35 @@ def validate_passcode(code):
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        raise ValueError('Needs at lest one argument, use command "help" to see commands')
-
-    arg = sys.argv[1].lower().strip()
+        print('Needs at lest one argument, see "help" command to see commands (called as default)')
+        arg = 'help'
+    else:
+        arg = sys.argv[1].lower().strip()
 
     if arg == 'help':
         print('Available commands:')
-        print('- log [num]: Quicklook plot of the logfile from mission number [num]')
-        print('- sim      : Simulate the currently modeled physics in the "force" and "thrust" functions')
-        print('- exp      : Run the experiment with the "thrust" function in the real world physics')
+        print('- log  [num]  : Quicklook plot of the logfile from mission number [num], defaults to newest log')
+        print('- sim  [level]: Simulate the currently modeled physics in the "force" and "thrust" functions, defaults to newest level')
+        print('- exp  [level]: Run the experiment with the "thrust" function in the real world physics, defaults to newest level')
+        print('- bank [code] : ')
     elif arg == 'log':
         if len(sys.argv) < 3:
-            logn = 1
+            logn = None
         else:
             logn = int(sys.argv[2])
         plot_log(logn)
     elif arg == 'sim':
-        run_sim()
+        if len(sys.argv) < 3:
+            level = None
+        else:
+            level = int(sys.argv[2])
+        run_sim(level)
     elif arg == 'exp':
-        run_game()
+        if len(sys.argv) < 3:
+            level = None
+        else:
+            level = int(sys.argv[2])
+        run_game(level)
     elif arg == 'bank':
         if len(sys.argv) < 3:
             raise ValueError('Need a [passcode]')

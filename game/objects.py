@@ -40,12 +40,13 @@ class BaseShip(ShipControl):
     """Creates our mission vessel
     """
 
-    def __init__(self, pos, vel, steps=10, params = None, thrust_params=None):
+    def __init__(self, pos, vel, screen_size, steps=10, params = None, thrust_params=None):
         self.pos = pos
         self.vel = vel
+        self.screen_size = screen_size
 
         if params is None:
-            self.params = {'m_dry': 0.25, 'm_wet': 1.0, 'dm/F': 1e1}
+            self.params = {'m_dry': 0.25, 'm_wet': 1.0, 'dm/F': 1e0}
         else:
             self.params = params
 
@@ -67,7 +68,7 @@ class BaseShip(ShipControl):
     def thrust_game_coord(self, pos, vel, t, **params):
         _pos = copy.copy(pos)
         _vel = copy.copy(vel)
-        _pos[1] = -pos[1]
+        _pos[1] = self.screen_size[1]-pos[1]
         _vel[1] = -vel[1]
         _F = self.thrust(_pos, _vel, t, **params)
         _F[1] = -_F[1]
@@ -76,7 +77,7 @@ class BaseShip(ShipControl):
     def force_game_coord(self, pos, vel, t, m):
         _pos = copy.copy(pos)
         _vel = copy.copy(vel)
-        _pos[1] = -pos[1]
+        _pos[1] = self.screen_size[1]-pos[1]
         _vel[1] = -vel[1]
         _F = self.force(_pos, _vel, t, m)
         _F[1] = -_F[1]
@@ -140,7 +141,7 @@ class Thrust(pg.sprite.Sprite):
         self.image, self.rect = load_image("engine.bmp", [0,0,0])
         self.ship = ship
 
-        self.max_force_scale = kwargs.pop('max_force_scale', 5e-5)
+        self.max_force_scale = kwargs.pop('max_force_scale', 1e-4)
         self.max_scale = kwargs.pop('max_scale', 2.0)
 
         self.original = self.image
@@ -157,17 +158,23 @@ class Thrust(pg.sprite.Sprite):
         if scale > self.max_scale:
             scale = self.max_scale
 
-        theta_F = -np.degrees(np.arctan2(self.ship.F[1], self.ship.F[0]))
+        theta_F = -np.degrees(np.arctan2(-self.ship.F[1], self.ship.F[0]))+180
         new_size = (int(self.original_rect.width*scale), int(self.original_rect.height*scale))
 
-        self.image = pg.transform.rotate(self.original, theta_F)
-        self.image = pg.transform.scale(self.image, new_size)
-        self.rect = self.image.get_rect(center=self.ship.pos)
+        _image = pg.transform.scale(self.original, new_size)
+        self.image = pg.transform.rotate(_image, -theta_F)
+
+        center = [
+            self.ship.rect.center[0] + np.cos(np.radians(theta_F))*self.ship.rect.size[0]*0.5, 
+            self.ship.rect.center[1] + np.sin(np.radians(theta_F))*self.ship.rect.size[1]*0.5, 
+        ]
+        
+        self.rect = self.image.get_rect(center=center)
 
 
 class Ship(pg.sprite.Sprite, BaseShip):
 
-    def __init__(self, pos, vel, **kwargs):
+    def __init__(self, pos, vel, screen_size, **kwargs):
         pg.sprite.Sprite.__init__(self)
 
         self.image, self.rect = load_image("ship.bmp", [0,0,0])
@@ -184,7 +191,7 @@ class Ship(pg.sprite.Sprite, BaseShip):
 
         self.rect.center = pos
 
-        BaseShip.__init__(self, pos, vel, **kwargs)
+        BaseShip.__init__(self, pos, vel, screen_size, **kwargs)
 
 
     def done(self, target):
@@ -198,7 +205,7 @@ class Ship(pg.sprite.Sprite, BaseShip):
 
         F_norm = np.linalg.norm(self.F)
 
-        if F_norm > 0:
+        if F_norm > 1e-9:
             self.engine_on = True
             if self.engine_sound_channel is None:
                 self.engine_sound_channel = self.engine_sound.play()
@@ -268,13 +275,30 @@ class AntiStar(pg.sprite.Sprite):
     def __init__(self, pos, m):
         pg.sprite.Sprite.__init__(self)
 
+        self.frames = [load_image(f"antistar{i}.bmp", [0,0,0]) for i in range(1,4)]
+        self.frames += [load_image(f"antistar{i}.bmp", [0,0,0]) for i in range(2,0,-1)]
+        self.frame = 0
+        self.frame_speed = 10
+
         self.image, self.rect = load_image("antistar.bmp", [0,0,0])
 
         screen = pg.display.get_surface()
         self.area = screen.get_rect()
         self.rect.center = pos
 
+        self.pos = pos
+
         self.m = m
+
+
+    def update(self, *args, **kwargs):
+
+        self.frame += 1
+        if self.frame >= len(self.frames)*self.frame_speed:
+            self.frame = 0
+
+        self.image, self.rect = self.frames[int(self.frame//self.frame_speed)]
+        self.rect.center = self.pos
 
 
     def force(self, pos, vel, **params):
@@ -283,6 +307,6 @@ class AntiStar(pg.sprite.Sprite):
         rv = np.array(self.rect.center) - np.array(pos)
         #exp and repulsive but at a offset
         rv_norm = np.linalg.norm(rv)
-        return -1.674e-12*self.m*params['m']*(rv/rv_norm)*np.exp(-(np.log10(self.m)*10 - rv_norm)**2/10.0)
+        return -1.674e-12*self.m*params['m']*(rv/rv_norm)*np.exp(-(np.log10(self.m)*12 - rv_norm)**2/10.0)
 
 
