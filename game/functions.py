@@ -9,7 +9,7 @@ import sys
 import pathlib
 import configparser
 
-from objects import *
+from .objects import *
 
 def get_path(name):
     return os.path.join(data_dir, name)

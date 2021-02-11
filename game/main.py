@@ -22,8 +22,8 @@ import datetime
 import pygame as pg
 from pygame.compat import geterror
 
-from objects import *
-from functions import (
+from .objects import *
+from .functions import (
         load_image, 
         load_sound, 
         get_path, 
@@ -86,7 +86,7 @@ Enter a passcode by calling "bank [passcode]".
 '''
 
 
-def run_sim(level):
+def run_sim(get_control_params, thrust, force, level=None):
 
     mission_counter, level_number = get_save_data()
     if level is None:
@@ -133,7 +133,7 @@ def run_sim(level):
 
     def update_sim(params):
 
-        ship = SimulatedShip(start_pos, start_vel, screen_size, thrust_params=params)
+        ship = SimulatedShip(start_pos, start_vel, screen_size, get_control_params, thrust, force, thrust_params=params)
 
         log = {'t': [], 'pos': [], 'vel': [], 'm': [], 'F': []}
 
@@ -212,7 +212,7 @@ def run_sim(level):
 
     boxes = {}
 
-    ship0 = SimulatedShip(start_pos, start_vel, screen_size)
+    ship0 = SimulatedShip(start_pos, start_vel, screen_size, get_control_params, thrust, force)
     start_params = ship0.get_control_params()
 
     def update_fig():
@@ -270,7 +270,7 @@ def run_sim(level):
     plt.show()
 
 
-def run_game(level=None):
+def run_game(get_control_params, thrust, force, level=None):
     """this function is called when the program starts.
        it initializes everything it needs, then runs in
        a loop until the function returns."""
@@ -357,7 +357,7 @@ def run_game(level=None):
     landscape = tuple(landscape)
     ## landscape def end ##
 
-    ship = Ship(start_pos, start_vel, screen_size)
+    ship = Ship(start_pos, start_vel, screen_size, get_control_params, thrust)
     ship._layer = 2
 
     engine = Thrust(ship)
@@ -600,7 +600,7 @@ def validate_passcode(code):
 
     if code0 in lines:
         del lines[lines.index(code0)]
-        
+
         mission_counter, level_number = get_save_data()
         print(f'Code {code} redeemed! 3 missions paid off: Mission Counter {mission_counter} -> {mission_counter - 3}')
 
@@ -614,44 +614,43 @@ def validate_passcode(code):
 
 
 
-# this calls the 'main' function when this script is executed
-if __name__ == "__main__":
+def run(get_control_params, thrust, force, argv):
 
-    if len(sys.argv) < 2:
+    if len(argv) < 2:
         print('Needs at lest one argument, see "help" command to see commands (called as default)')
         arg = 'help'
     else:
-        arg = sys.argv[1].lower().strip()
+        arg = argv[1].lower().strip()
 
     if arg == 'help':
         print('Available commands:')
         print('- log  [num]  : Quicklook plot of the logfile from mission number [num], defaults to newest log')
         print('- sim  [level]: Simulate the currently modeled physics in the "force" and "thrust" functions, defaults to newest level')
         print('- exp  [level]: Run the experiment with the "thrust" function in the real world physics, defaults to newest level')
-        print('- bank [code] : ')
+        print('- bank [code] : Redeem a sponsor code to get funding for three more experiments.')
     elif arg == 'log':
-        if len(sys.argv) < 3:
+        if len(argv) < 3:
             logn = None
         else:
-            logn = int(sys.argv[2])
+            logn = int(argv[2])
         plot_log(logn)
     elif arg == 'sim':
-        if len(sys.argv) < 3:
+        if len(argv) < 3:
             level = None
         else:
-            level = int(sys.argv[2])
-        run_sim(level)
+            level = int(argv[2])
+        run_sim(get_control_params, thrust, force, level=level)
     elif arg == 'exp':
-        if len(sys.argv) < 3:
+        if len(argv) < 3:
             level = None
         else:
-            level = int(sys.argv[2])
-        run_game(level)
+            level = int(argv[2])
+        run_game(get_control_params, thrust, force, level=level)
     elif arg == 'bank':
-        if len(sys.argv) < 3:
+        if len(argv) < 3:
             raise ValueError('Need a [passcode]')
         else:
-            validate_passcode(sys.argv[2])
+            validate_passcode(argv[2])
     else:
         raise ValueError('Invalid command, use "help" to see valid commands')
     

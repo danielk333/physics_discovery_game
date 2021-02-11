@@ -12,8 +12,7 @@ import os
 import pygame as pg
 from pygame.compat import geterror
 
-from functions import load_image, load_sound
-from user_input import ShipControl, PhysicsModel
+from .functions import load_image, load_sound
 
 __all__ = [
     'Ship', 
@@ -36,14 +35,16 @@ def draw_bar(screen, pos, size, border_color, bar_color, progress):
 
 
 
-class BaseShip(ShipControl):
+class BaseShip:
     """Creates our mission vessel
     """
 
-    def __init__(self, pos, vel, screen_size, steps=10, params = None, thrust_params=None):
+    def __init__(self, pos, vel, screen_size, get_control_params, thrust, steps=10, params = None, thrust_params=None):
         self.pos = pos
         self.vel = vel
         self.screen_size = screen_size
+        self.get_control_params = get_control_params
+        self.thrust = thrust
 
         if params is None:
             self.params = {'m_dry': 0.25, 'm_wet': 1.0, 'dm/F': 1e0}
@@ -70,7 +71,7 @@ class BaseShip(ShipControl):
         _vel = copy.copy(vel)
         _pos[1] = self.screen_size[1]-pos[1]
         _vel[1] = -vel[1]
-        _F = self.thrust(_pos, _vel, t, **params)
+        _F = self.thrust(_pos, _vel, t, self.params['m_wet'], **params)
         _F[1] = -_F[1]
         return _F
 
@@ -174,7 +175,7 @@ class Thrust(pg.sprite.Sprite):
 
 class Ship(pg.sprite.Sprite, BaseShip):
 
-    def __init__(self, pos, vel, screen_size, **kwargs):
+    def __init__(self, pos, vel, screen_size, get_control_params, thrust, **kwargs):
         pg.sprite.Sprite.__init__(self)
 
         self.image, self.rect = load_image("ship.bmp", [0,0,0])
@@ -191,7 +192,7 @@ class Ship(pg.sprite.Sprite, BaseShip):
 
         self.rect.center = pos
 
-        BaseShip.__init__(self, pos, vel, screen_size, **kwargs)
+        BaseShip.__init__(self, pos, vel, screen_size, get_control_params, thrust, **kwargs)
 
 
     def done(self, target):
@@ -224,8 +225,11 @@ class Ship(pg.sprite.Sprite, BaseShip):
         self.rect = self.image.get_rect(center=self.pos)
 
 
-class SimulatedShip(BaseShip, PhysicsModel):
-    pass
+class SimulatedShip(BaseShip):
+    def __init__(self, pos, vel, screen_size, get_control_params, thrust, force, **kwargs):
+        self.force = force
+        BaseShip.__init__(self, pos, vel, screen_size, get_control_params, thrust, **kwargs)
+
 
 
 class Target(pg.sprite.Sprite):
