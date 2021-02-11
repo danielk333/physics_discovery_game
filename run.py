@@ -9,7 +9,7 @@ def get_control_params():
     '''
     params = dict(
         t_start = 1e3,
-        force_y = 0e-4,
+        force_y = 0,
         force_x = 0,
     )
     return params
@@ -21,7 +21,7 @@ def thrust(pos, vel, t, m_wet, **params):
 
     In the keyword arguments "params" are the parameters to control the algorithm.
 
-    When running the actual experiment the parameters used will be fetched from "get_params".
+    When running the actual experiment the parameters used will be fetched from "get_control_params".
     When simulating a mission, the parameters can be changed on the fly since it is a simulation.
 
     '''

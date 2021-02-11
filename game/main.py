@@ -80,7 +80,7 @@ Congratulations! The mission reached the target(s)
 no_money_str = '''
 No more funding by the bank to launch another experiment! Get some more by entering a valid sponsor passcode.
 
-Get passcodes by completing course exercises (see instruction PDF), each passcode is worth 3 experiments!
+Get passcodes by completing course exercises (see lab instructions), each passcode is worth 3 experiments!
 
 Enter a passcode by calling "bank [passcode]".
 '''
