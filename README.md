@@ -4,23 +4,25 @@
 
 1. Clone this repository
 2. Run `pip install -r requirement.txt`
-3. run `python3 compile.py "path/to/game"`. The path should NOT be inside the repository. 
+3. run `python compile.py "path/to/game"`. The path should NOT be inside the repository. 
 4. Delete the repository.
 5. Run the game with `python run.py [args]` from the `path/to/game` directory. All logfiles will now be stored in this directory.
 
-After this, there should be a compiled game library in the given path, together with a `run.py` where the user input is stored. When this file is run `python run.py` a help with available game commands in shown. When this is setup in an actual classroom, there should also be a prepared document with instructions in this folder specific for the course in question.
+After this, there should be a compiled game package in the given path, together with a `run.py` where the student input is stored. When this file is run with `python run.py` help text is displayed with available game commands. 
 
-When deployed in a course, an additional layer of encryption should probably be put on the game config and passcodes file so that the game decrypts the files to read the data from them. This prevents to students from "cheating". This is currently not implemented by default so the files are visible in plaintext.
+When the game is setup in an actual classroom, there should also be a prepared document with instructions in this folder specific for the course in question.
+
+When deployed in a course, an additional layer of encryption should probably be put on the game config and passcodes file so that the game decrypts the files to read the data from them. This prevents to students from "cheating". This is currently not implemented by default so the files are visible in plain-text.
 
 TODO:
 
-[] Automatic encryption of files that only the `pyc` files can decrypt.
+[ ] Automatic encryption of files that only the `pyc` files can decrypt.
 
 ## Playing the game
 
 ### Background
 
-The game is about exploring physics and moving on to new domains. You have the possibility to launch a automated probe with thrusters into a new realm governed by physics we do not know. There is only a limited amount of launch attempts so one cannot be wasteful and just brute force it. Much like space craft today, simulation prior to excursion is extremely useful when one can only afford to try something once or twice.
+The game is about exploring physics and moving on to new domains. You have the possibility to launch a automated probe with thrusters into a new realm governed by physics we do not know. There is only a limited amount of launch attempts so one cannot be wasteful and just brute force it. Much like spacecraft today, simulation prior to excursion is extremely useful when one can only afford to try something once or twice.
 
 ### Game components
 
@@ -35,8 +37,8 @@ The game has 3 major modes:
 2. Launch an experiment with `python run.py exp`.
 3. Watch the outcome, get familiar with the environment.
 4. Plot the log with `python run.py log`, look at the forces that affect the probe.
-5. Load the logfile into some analysis program written by the player, create a analytic model of the force, write it in the `def force` function.
-6. Run a simulation with the new force model using `python run.py sim`. If the trajectory looks like the logfile, you have found the physics!
+5. Load the logfile into some analysis program written by the player, create an analytic model of the force, write it in the `def force(...):` function in `run.py`.
+6. Run a simulation with the new force model using `python run.py sim`. If the trajectory looks like the logfile, you have discovered and modeled the physics!
 7. Write a parameter controlled thruster program, run a simulation again using `python run.py sim`, but this time tune the parameters using the TK interface.
 8. Find a thruster program that gets to the goal, put those parameters into the `get_control_params` function.
 9. Launch a new experiment with `python run.py exp` and cross your fingers! Hopefully you win!
