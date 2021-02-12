@@ -1,5 +1,14 @@
 # Physics modeling and discovery game
 
+## Testing out the game
+
+1. Clone this repository
+2. Run `pip install -r requirement.txt`
+3. Run `python run.py [args]` to play. Read the "Playing the game" below first.
+
+Notes:
+- The save game data is in the `game/data/save_data.npy`, to restart delete this file.
+
 ## Installing on student computers
 
 1. Clone this repository
